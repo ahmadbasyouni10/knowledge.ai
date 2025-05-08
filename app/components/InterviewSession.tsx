@@ -40,9 +40,13 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
   const [liveTranscript, setLiveTranscript] = useState("");
   const [speechRecognition, setSpeechRecognition] = useState<any>(null);
   const [speechRate, setSpeechRate] = useState<number>(1.0);
+  const [typingText, setTypingText] = useState<{id: string, text: string} | null>(null);
+  const [typingComplete, setTypingComplete] = useState<boolean>(true);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const recognitionRef = useRef<any>(null);
+  const typingSpeedRef = useRef<number>(30);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Initialize with welcome message based on session type
   useEffect(() => {
@@ -265,7 +269,62 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         timestamp: new Date(),
       };
       
-      setMessages(prev => [...prev, introMsg]);
+      // Add intro with empty content first
+      const initialIntro = {
+        ...introMsg,
+        content: ""
+      };
+      setMessages(prev => [...prev, initialIntro]);
+      
+      // Start typing effect
+      setTypingComplete(false);
+      setTypingText({ id: introMsg.id, text: "" });
+      
+      // Clear any existing typing timer
+      if (typingTimerRef.current) {
+        clearInterval(typingTimerRef.current);
+      }
+      
+      // Start the typing effect
+      let charIndex = 0;
+      const textToType = introMessage;
+      
+      typingTimerRef.current = setInterval(() => {
+        if (charIndex < textToType.length) {
+          charIndex++;
+          const currentText = textToType.substring(0, charIndex);
+          setTypingText({ id: introMsg.id, text: currentText });
+          
+          // Update the message with the current text
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === introMsg.id 
+                ? { ...msg, content: currentText } 
+                : msg
+            )
+          );
+        } else {
+          // Typing is complete
+          clearInterval(typingTimerRef.current!);
+          setTypingComplete(true);
+          setTypingText(null);
+          
+          // Ensure the message has the full content
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === introMsg.id 
+                ? { ...msg, content: textToType } 
+                : msg
+            )
+          );
+          
+          // Speak the introduction after typing is complete
+          console.log('Starting to speak introduction...');
+          setTimeout(() => {
+            safelySpeakText(introMessage);
+          }, 500);
+        }
+      }, typingSpeedRef.current);
       
       // Try to save the session to the database
       try {
@@ -295,14 +354,6 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         console.error('Error saving session:', e);
       }
       
-      // Speak the introduction - Using setTimeout for better reliability
-      console.log('Starting to speak introduction...');
-      
-      // Give UI time to update before speaking
-      setTimeout(() => {
-        safelySpeakText(introMessage);
-      }, 1500);
-      
     } catch (error) {
       console.error("Error starting interview:", error);
       alert("There was an error starting the interview. Please try again later.");
@@ -322,6 +373,13 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         return;
       }
       
+      // Clean text for speaking - remove markdown formatting
+      const cleanedText = text
+        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markers
+        .replace(/\*(.*?)\*/g, '$1')     // Remove italic markers
+        .replace(/###\s+(.*?)(\n|$)/g, '$1') // Remove headers
+        .replace(/`(.*?)`/g, '$1');    // Remove code markers
+      
       // First ensure no other speech is happening
       window.speechSynthesis.cancel();
       
@@ -333,7 +391,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
           
           // Prepare text - handle specific patterns that might cause issues
           // Split text into smaller, manageable chunks on natural boundaries
-          const sentences = text.split(/(?<=[.!?])\s+/);
+          const sentences = cleanedText.split(/(?<=[.!?])\s+/);
           const chunks: string[] = [];
           let currentChunk = '';
           const maxChunkSize = 150; // Smaller chunks are more reliable
@@ -707,15 +765,13 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         details
       );
       
-      // Add AI response to messages
+      // Create the AI response object
       const aiResponse: Message = {
         id: Date.now().toString(),
         content: aiResponseText,
         role: "assistant",
         timestamp: new Date()
       };
-      
-      setMessages((prev) => [...prev, aiResponse]);
       
       // Save the AI response to session storage
       if (sessionData?.id) {
@@ -742,6 +798,57 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
           console.error('Error saving AI message to session storage:', e);
         }
       }
+      
+      // Start typing effect instead of showing the full message
+      setTypingComplete(false);
+      setTypingText({ id: aiResponse.id, text: "" });
+      
+      // Add AI response to messages but with empty content initially
+      const initialResponse = {
+        ...aiResponse,
+        content: ""
+      };
+      setMessages((prev) => [...prev, initialResponse]);
+      
+      // Start the typing effect
+      let charIndex = 0;
+      const textToType = aiResponseText;
+      
+      // Clear any existing typing timer
+      if (typingTimerRef.current) {
+        clearInterval(typingTimerRef.current);
+      }
+      
+      typingTimerRef.current = setInterval(() => {
+        if (charIndex < textToType.length) {
+          charIndex++;
+          const currentText = textToType.substring(0, charIndex);
+          setTypingText({ id: aiResponse.id, text: currentText });
+          
+          // Update the message with the current text
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === aiResponse.id 
+                ? { ...msg, content: currentText } 
+                : msg
+            )
+          );
+        } else {
+          // Typing is complete
+          clearInterval(typingTimerRef.current!);
+          setTypingComplete(true);
+          setTypingText(null);
+          
+          // Ensure the message has the full content
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === aiResponse.id 
+                ? { ...msg, content: textToType } 
+                : msg
+            )
+          );
+        }
+      }, typingSpeedRef.current);
       
       // Play audio feedback for the AI response
       setIsThinking(false);
@@ -996,6 +1103,15 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     }
   };
   
+  // Clean up typing effect on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearInterval(typingTimerRef.current);
+      }
+    };
+  }, []);
+  
   return (
     <div className={cn("flex flex-col h-full bg-white rounded-xl shadow-lg overflow-hidden", className)}>
       <div className="p-4 border-b flex justify-between items-center bg-indigo-50">
@@ -1005,7 +1121,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         <div className="flex items-center gap-3">
           {isConnected && (
             <>
-              {/* Speech rate controls - FIXED: Updated colors for better visibility */}
+              {/* Speech rate controls - Updated with simpler options */}
               <div className="flex items-center space-x-2">
                 <div className="flex items-center">
                   <span className="text-xs text-gray-700 mr-1 font-medium">Speed:</span>
@@ -1017,8 +1133,6 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
                     <option value="0.8">Slow</option>
                     <option value="1.0">Normal</option>
                     <option value="1.3">Fast</option>
-                    <option value="1.6">Faster</option>
-                    <option value="2.0">Fastest</option>
                   </select>
                 </div>
               </div>
@@ -1222,13 +1336,21 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
       <div className="absolute bottom-20 right-4 flex flex-col items-end space-y-2">
         {isConnected && (
           <>
-            {/* Speaking indicator without stop button */}
+            {/* Speaking indicator with stop button */}
             {isSpeaking && (
               <div className="bg-white/90 backdrop-blur-md p-2 rounded-lg shadow-md flex items-center space-x-2 border border-gray-200">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-xs font-medium text-gray-800">Speaking</span>
                 </div>
+                <Button 
+                  onClick={stopSpeaking} 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-6 w-6 p-0 rounded-full"
+                >
+                  <StopIcon className="h-3 w-3 text-gray-600" />
+                </Button>
               </div>
             )}
           </>
