@@ -422,55 +422,84 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     }
   };
   
-  // Function to play audio response with speech rate control - FIXED for more reliable behavior
+  // Improved function to play audio response with speech rate control and better error handling
   const playAudioResponse = async (text: string) => {
     if (!text || !isConnected) return;
     
-    console.log('PlayAudioResponse called with text length:', text.length);
+    console.log('Starting text-to-speech, length:', text.length);
     setIsSpeaking(true);
     
     try {
-      console.log('Starting text-to-speech for AI response...');
-      
-      // Ensure voices are ready
-      await forceVoiceInit();
-      
-      // Direct approach to speech synthesis for more reliability
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = speechRate;
-      
-      // Set voice if available
-      if (window.speechSynthesis.getVoices().length > 0) {
-        // Use the first English voice available
-        const voices = window.speechSynthesis.getVoices();
-        const englishVoice = voices.find(v => 
-          v.lang === 'en-US' || v.lang.startsWith('en')
-        );
-        if (englishVoice) utterance.voice = englishVoice;
+      // Make sure any previous speech is stopped
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
       }
       
-      // Set up event handlers
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        console.log('AI response speech completed');
-      };
+      // Ensure voices are initialized
+      await forceVoiceInit();
       
-      utterance.onerror = (e) => {
-        console.error('Error during AI response speech:', e);
-        setIsSpeaking(false);
-      };
+      // Break text into smaller chunks for better reliability (max 150 chars)
+      const chunks = text.match(/.{1,150}(?=\s|$|\n|\.|\?|\!)/g) || [text];
       
-      // First make sure any current speech is stopped
-      window.speechSynthesis.cancel();
+      // Process chunks sequentially
+      for (let i = 0; i < chunks.length; i++) {
+        if (!isSpeaking) break; // Allow for interruption
+        
+        const chunk = chunks[i];
+        await new Promise<void>((resolve, reject) => {
+          try {
+            const utterance = new SpeechSynthesisUtterance(chunk);
+            utterance.rate = speechRate;
+            utterance.volume = 1.0;
+            
+            // Try to find a good English voice
+            const voices = window.speechSynthesis.getVoices();
+            const englishVoice = voices.find(v => 
+              v.lang === 'en-US' || 
+              v.lang.startsWith('en') ||
+              v.name.includes('English')
+            );
+            
+            if (englishVoice) {
+              utterance.voice = englishVoice;
+            }
+            
+            // Set up event handlers
+            utterance.onend = () => {
+              console.log(`Chunk ${i+1}/${chunks.length} spoken`);
+              resolve();
+            };
+            
+            utterance.onerror = (e) => {
+              console.error(`Speech error on chunk ${i+1}:`, e);
+              resolve(); // Still continue with next chunk
+            };
+            
+            // Speak the chunk
+            window.speechSynthesis.speak(utterance);
+            
+            // Chrome bug workaround - resume if paused
+            window.speechSynthesis.resume();
+            
+            // Add a timeout to resolve anyway in case the events don't fire
+            setTimeout(() => {
+              if (window.speechSynthesis.speaking) {
+                resolve();
+              }
+            }, 5000);
+          } catch (error) {
+            console.error('Error in speech chunk:', error);
+            resolve(); // Continue with next chunk despite error
+          }
+        });
+        
+        // Small pause between chunks
+        await new Promise(r => setTimeout(r, 100));
+      }
       
-      // Speak the text
-      window.speechSynthesis.speak(utterance);
-      
-      // Ensure it's not paused (Chrome bug)
-      window.speechSynthesis.resume();
-      
-      console.log('Speech synthesis request sent to browser');
-      
+      // Finished speaking all chunks
+      console.log('AI response speech completed');
+      setIsSpeaking(false);
     } catch (error) {
       console.error("Error playing audio:", error);
       setIsSpeaking(false);
@@ -517,24 +546,30 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     const sessionData = JSON.parse(sessionStorage.getItem('interviewSession') || '{}');
     if (sessionData?.id) {
       try {
-        // Wrap in a try-catch to prevent API errors from affecting voice
-        fetch('/api/save-message', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            interviewId: sessionData.id,
+        // Instead of calling the failing API endpoint, save to session storage
+        const historyJson = sessionStorage.getItem('interviewHistory') || '[]';
+        const history = JSON.parse(historyJson);
+        
+        // Find the current session
+        const sessionIndex = history.findIndex((item: any) => item.id === sessionData.id);
+        if (sessionIndex !== -1) {
+          // Add message to history
+          if (!history[sessionIndex].messages) {
+            history[sessionIndex].messages = [];
+          }
+          history[sessionIndex].messages.push({
+            id: newUserMessage.id,
             content: newUserMessage.content,
             role: 'user',
-          }),
-        }).catch(e => {
-          // Just log the error, don't let it affect the main flow
-          console.warn('API error when saving message, continuing anyway:', e);
-        });
+            timestamp: new Date().toISOString()
+          });
+          sessionStorage.setItem('interviewHistory', JSON.stringify(history));
+        }
+        
+        // No API call needed - everything stored in sessionStorage
       } catch (e) {
         // Silently fail - we don't want to interrupt the interview flow
-        console.error('Error saving message:', e);
+        console.error('Error saving message to session storage:', e);
       }
     }
     
@@ -610,27 +645,29 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
       
       setMessages((prev) => [...prev, aiResponse]);
       
-      // Save the AI response to Convex if we have an ID
+      // Save the AI response to session storage
       if (sessionData?.id) {
         try {
-          // Wrap in a try-catch to prevent API errors from affecting voice
-          fetch('/api/save-message', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              interviewId: sessionData.id,
+          const historyJson = sessionStorage.getItem('interviewHistory') || '[]';
+          const history = JSON.parse(historyJson);
+          
+          // Find the current session
+          const sessionIndex = history.findIndex((item: any) => item.id === sessionData.id);
+          if (sessionIndex !== -1) {
+            // Add message to history
+            if (!history[sessionIndex].messages) {
+              history[sessionIndex].messages = [];
+            }
+            history[sessionIndex].messages.push({
+              id: aiResponse.id,
               content: aiResponseText,
               role: 'assistant',
-            }),
-          }).catch(e => {
-            // Just log the error, don't let it affect the main flow
-            console.warn('API error when saving AI message, continuing anyway:', e);
-          });
+              timestamp: new Date().toISOString()
+            });
+            sessionStorage.setItem('interviewHistory', JSON.stringify(history));
+          }
         } catch (e) {
-          // Silently fail - we don't want to interrupt the interview flow
-          console.error('Error saving AI message:', e);
+          console.error('Error saving AI message to session storage:', e);
         }
       }
       
@@ -640,15 +677,32 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
       
       // Use setTimeout to give the UI a chance to update before starting speech
       setTimeout(() => {
-        // Make sure any ongoing speech is stopped
-        if (window.speechSynthesis && window.speechSynthesis.speaking) {
-          window.speechSynthesis.cancel();
+        try {
+          // Make sure any ongoing speech is stopped
+          if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+          }
+          
+          // Force re-initialize voice capabilities before speaking
+          forceVoiceInit().then(() => {
+            // Now play the new response with a retry mechanism
+            playAudioResponse(aiResponseText)
+              .catch(err => {
+                console.error('Error playing AI response audio:', err);
+                // Try once more with a direct approach
+                try {
+                  const utterance = new SpeechSynthesisUtterance(aiResponseText);
+                  utterance.rate = speechRate;
+                  window.speechSynthesis.speak(utterance);
+                } catch (finalErr) {
+                  console.error('Final attempt failed:', finalErr);
+                }
+              });
+          });
+        } catch (error) {
+          console.error('Error in speech preparation:', error);
         }
-        
-        // Now play the new response
-        playAudioResponse(aiResponseText)
-          .catch(err => console.error('Error playing AI response audio:', err));
-      }, 500); // Longer delay for UI to fully update
+      }, 800); // Longer delay for UI to fully update
     } catch (error) {
       console.error("Error generating AI response:", error);
       
