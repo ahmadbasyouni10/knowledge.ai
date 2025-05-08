@@ -84,32 +84,37 @@ async function generateInterviewResponse(
     
     // Check for specific focus areas in the details provided
     const focusAreas = details?.focusAreas || [];
-    const hasChatAppFocus = focusAreas.some((area: string) => 
-      area.toLowerCase().includes('chat') || 
-      area.toLowerCase().includes('messaging')
-    );
+    const specificSkills = details?.specificSkills || "";
     
     if (interviewType.includes('system design') || hasFocusOnSystemDesign) {
+      // Extract the system to design from specificSkills if available
+      const systemToDesign = specificSkills && specificSkills.trim() 
+        ? specificSkills.trim() 
+        : (focusAreas.find((area: string) => 
+            area.toLowerCase().includes('application') || 
+            area.toLowerCase().includes('system') || 
+            area.toLowerCase().includes('platform')
+          ) || "").trim();
+      
       // Comprehensive system design interview prompt
-      systemPrompt = `You are an expert technical interviewer specializing in system design interviews for ${topic} positions.
+      systemPrompt = `You are an expert technical interviewer conducting a system design interview for a ${topic} position.
       
       IMPORTANT INSTRUCTIONS:
-      1. You are conducting a thorough system design interview covering all critical aspects of designing scalable systems.
-      2. Guide the candidate through a methodical approach to system design while evaluating their technical knowledge and problem-solving abilities.
-      3. Ask challenging but fair system design questions that assess their ability to design complex, scalable systems.
+      1. You are conducting a comprehensive system design interview focused specifically on designing ${systemToDesign || "a scalable system relevant to the candidate's experience"}.
+      2. Guide the candidate through a methodical approach to system design while evaluating their technical knowledge and problem-solving abilities.`;
+      
+      // If a specific system is mentioned, focus explicitly on that
+      if (systemToDesign) {
+        systemPrompt += `
+      3. FOCUS SPECIFICALLY ON DESIGNING: ${systemToDesign.toUpperCase()}. Do not suggest other systems unless the candidate is struggling with this one.`;
+      } else {
+        systemPrompt += `
+      3. Ask the candidate to design a specific system like a chat application, social media platform, e-commerce system, or another system relevant to their background.`;
+      }
+      
+      systemPrompt += `
       
       SYSTEM DESIGN INTERVIEW STRUCTURE:
-      First, establish a specific system to design based on the candidate's role. If no system is specified by the candidate, choose ONE appropriate system to design from:
-      - Chat/Messaging Application
-      - Social Media Platform
-      - E-commerce System
-      - Video Streaming Service
-      - Ride-sharing Platform
-      - URL Shortener
-      - File Sharing System
-      - Payment Processing System
-      - Online Collaborative Document Editor
-      
       Systematically cover these key system design topics throughout the interview:
       
       1. REQUIREMENTS GATHERING:
@@ -253,6 +258,11 @@ async function generateInterviewResponse(
     // Add context about focus areas if they exist
     if (focusAreas && focusAreas.length > 0) {
       systemPrompt += `\n\nFOCUS AREAS (PRIORITIZE THESE TOPICS): ${focusAreas.join(', ')}\n`;
+    }
+    
+    // Add specific skills information if available and relevant 
+    if (specificSkills && interviewType.includes('system design')) {
+      systemPrompt += `\n\nSYSTEM TO DESIGN (FOCUS EXCLUSIVELY ON THIS): ${specificSkills}\n`;
     }
     
     // Add system message to the beginning if not already present

@@ -181,7 +181,7 @@ export default function MockInterviewPage() {
   const getSkillsLabel = () => {
     switch (interviewType) {
       case "system-design":
-        return "System to Design (Optional - our AI will cover all key system design topics)";
+        return "System to Design (Choose a specific system to design)";
       case "coding":
         return "Specific Algorithms/Problems (Optional)";
       case "frontend":
@@ -203,7 +203,11 @@ export default function MockInterviewPage() {
           System Design Interview Overview
         </h3>
         <p className="text-sm text-blue-700 mb-2">
-          Your system design interview will thoroughly cover these key areas:
+          <span className="font-bold">Important:</span> Please specify the system you want to design above. 
+          Your interview will focus exclusively on designing this system.
+        </p>
+        <p className="text-sm text-blue-700 mb-2">
+          Your interview will cover these key areas for your chosen system:
         </p>
         <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside mb-2">
           <li>Requirements gathering (functional & non-functional)</li>
@@ -213,9 +217,6 @@ export default function MockInterviewPage() {
           <li>Reliability, fault tolerance & consistency considerations</li>
           <li>And other advanced topics based on your system</li>
         </ul>
-        <p className="text-sm text-blue-700 italic">
-          Specifying a system is optional - our AI interviewer will guide you through a complete system design process regardless.
-        </p>
       </div>
     );
   };
