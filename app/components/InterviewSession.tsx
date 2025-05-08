@@ -70,6 +70,12 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
   useEffect(() => {
     console.log('Initializing speech synthesis for interview session...');
     if ('speechSynthesis' in window) {
+      // Detect browser for special handling
+      const ua = navigator.userAgent;
+      const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+      const isMacOS = /Mac/.test(ua);
+      console.log(`Browser detection: Safari=${isSafari}, macOS=${isMacOS}`);
+      
       // Initialize voice capabilities
       initSpeechSynthesis();
       
@@ -80,12 +86,11 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
           const success = await forceVoiceInit();
           console.log('Force voice initialization result:', success);
           
-          if (success) {
-            // Test voice with a single word silently to ensure it's working
-            const testUtterance = new SpeechSynthesisUtterance('Test');
-            testUtterance.volume = 0; // Silent test
-            window.speechSynthesis.speak(testUtterance);
-          }
+          // Add a short utterance to prime the speech engine
+          const testUtterance = new SpeechSynthesisUtterance('Hello');
+          testUtterance.volume = 0.01; // Almost silent
+          testUtterance.onend = () => console.log('Initial speech primer completed');
+          window.speechSynthesis.speak(testUtterance);
         } catch (e) {
           console.error('Voice initialization error:', e);
         }
@@ -280,59 +285,99 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         console.error('Error saving session:', e);
       }
       
-      // Speak the introduction - FIXED: Use a more explicit approach
+      // Speak the introduction - Using setTimeout for better reliability
       console.log('Starting to speak introduction...');
       
       // Give UI time to update before speaking
-      setTimeout(async () => {
-        try {
-          // Make sure voices are ready
-          await forceVoiceInit();
-          
-          // Directly use speechSynthesis for more reliable behavior
-          const utterance = new SpeechSynthesisUtterance(introMessage);
-          utterance.rate = speechRate;
-          
-          // Set voice if available
-          if (window.speechSynthesis.getVoices().length > 0) {
-            // Use the first English voice available
-            const voices = window.speechSynthesis.getVoices();
-            const englishVoice = voices.find(v => 
-              v.lang === 'en-US' || v.lang.startsWith('en')
-            );
-            if (englishVoice) utterance.voice = englishVoice;
-          }
-          
-          // Mark as speaking
-          setIsSpeaking(true);
-          
-          // Set up event handlers
-          utterance.onend = () => {
-            setIsSpeaking(false);
-            console.log('Introduction speech completed');
-          };
-          
-          utterance.onerror = (e) => {
-            console.error('Error during introduction speech:', e);
-            setIsSpeaking(false);
-          };
-          
-          // Speak the introduction
-          window.speechSynthesis.speak(utterance);
-          
-          // Ensure it's not paused (Chrome bug)
-          window.speechSynthesis.resume();
-        } catch (err) {
-          console.error('Error in speak introduction:', err);
-          setIsSpeaking(false);
-        }
-      }, 800);
+      setTimeout(() => {
+        safelySpeakText(introMessage);
+      }, 1500);
       
     } catch (error) {
       console.error("Error starting interview:", error);
       alert("There was an error starting the interview. Please try again later.");
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  // Safe wrapper for speaking text
+  const safelySpeakText = (text: string) => {
+    try {
+      // Make sure speech synthesis is available
+      if (!window.speechSynthesis) {
+        console.error('Speech synthesis not available');
+        return;
+      }
+      
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+      
+      // Create and configure utterance
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = speechRate;
+      utterance.volume = 1.0;
+      
+      // Find a suitable voice
+      const voices = window.speechSynthesis.getVoices();
+      const goodVoices = voices.filter(v => 
+        (v.lang === 'en-US' || v.lang.startsWith('en')) && 
+        !v.name.includes('Zira') // Skip problematic voices
+      );
+      
+      if (goodVoices.length > 0) {
+        // Prefer Google voices first
+        const googleVoice = goodVoices.find(v => v.name.includes('Google'));
+        if (googleVoice) {
+          utterance.voice = googleVoice;
+        } else {
+          utterance.voice = goodVoices[0];
+        }
+      }
+      
+      // Mark as speaking
+      setIsSpeaking(true);
+      
+      // Set up event handlers
+      utterance.onend = () => {
+        console.log('Speech completed successfully');
+        setIsSpeaking(false);
+      };
+      
+      utterance.onerror = (e) => {
+        console.error('Speech error:', e);
+        setIsSpeaking(false);
+      };
+      
+      // Start speaking
+      window.speechSynthesis.speak(utterance);
+      
+      // Ensure it's not paused (Chrome bug)
+      window.speechSynthesis.resume();
+      
+      // Safety timeout to reset speaking state if onend/onerror don't fire
+      setTimeout(() => {
+        if (isSpeaking) {
+          console.log('Speech timeout reached, resetting state');
+          setIsSpeaking(false);
+        }
+      }, 30000); // 30-second timeout
+      
+    } catch (error) {
+      console.error('Error in safelySpeakText:', error);
+      setIsSpeaking(false);
+    }
+  };
+  
+  // New function to test voice
+  const testVoice = async () => {
+    try {
+      console.log('Testing voice functionality...');
+      const testPhrase = "Voice system initialized and ready.";
+      
+      safelySpeakText(testPhrase);
+    } catch (error) {
+      console.error("Error during voice test:", error);
     }
   };
   
@@ -422,88 +467,14 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     }
   };
   
-  // Improved function to play audio response with speech rate control and better error handling
+  // Replace the playAudioResponse function with a simpler, more reliable approach
   const playAudioResponse = async (text: string) => {
     if (!text || !isConnected) return;
     
     console.log('Starting text-to-speech, length:', text.length);
-    setIsSpeaking(true);
     
-    try {
-      // Make sure any previous speech is stopped
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-      
-      // Ensure voices are initialized
-      await forceVoiceInit();
-      
-      // Break text into smaller chunks for better reliability (max 150 chars)
-      const chunks = text.match(/.{1,150}(?=\s|$|\n|\.|\?|\!)/g) || [text];
-      
-      // Process chunks sequentially
-      for (let i = 0; i < chunks.length; i++) {
-        if (!isSpeaking) break; // Allow for interruption
-        
-        const chunk = chunks[i];
-        await new Promise<void>((resolve, reject) => {
-          try {
-            const utterance = new SpeechSynthesisUtterance(chunk);
-            utterance.rate = speechRate;
-            utterance.volume = 1.0;
-            
-            // Try to find a good English voice
-            const voices = window.speechSynthesis.getVoices();
-            const englishVoice = voices.find(v => 
-              v.lang === 'en-US' || 
-              v.lang.startsWith('en') ||
-              v.name.includes('English')
-            );
-            
-            if (englishVoice) {
-              utterance.voice = englishVoice;
-            }
-            
-            // Set up event handlers
-            utterance.onend = () => {
-              console.log(`Chunk ${i+1}/${chunks.length} spoken`);
-              resolve();
-            };
-            
-            utterance.onerror = (e) => {
-              console.error(`Speech error on chunk ${i+1}:`, e);
-              resolve(); // Still continue with next chunk
-            };
-            
-            // Speak the chunk
-            window.speechSynthesis.speak(utterance);
-            
-            // Chrome bug workaround - resume if paused
-            window.speechSynthesis.resume();
-            
-            // Add a timeout to resolve anyway in case the events don't fire
-            setTimeout(() => {
-              if (window.speechSynthesis.speaking) {
-                resolve();
-              }
-            }, 5000);
-          } catch (error) {
-            console.error('Error in speech chunk:', error);
-            resolve(); // Continue with next chunk despite error
-          }
-        });
-        
-        // Small pause between chunks
-        await new Promise(r => setTimeout(r, 100));
-      }
-      
-      // Finished speaking all chunks
-      console.log('AI response speech completed');
-      setIsSpeaking(false);
-    } catch (error) {
-      console.error("Error playing audio:", error);
-      setIsSpeaking(false);
-    }
+    // Use the safe wrapper function
+    safelySpeakText(text);
   };
   
   // Function to stop speaking immediately
@@ -834,78 +805,59 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     }, 500);
   };
   
-  const testVoice = async () => {
-    try {
-      console.log('Testing voice functionality...');
-      const testPhrase = "Voice system initialized and ready.";
+  // Render message with proper markdown formatting
+  const renderMessage = (message: Message) => {
+    // Function to format text - replace asterisks with proper styling
+    const formatText = (text: string) => {
+      // Replace markdown-style formatting with HTML
+      const formatted = text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+        .replace(/\*(.*?)\*/g, '<em>$1</em>') // Italic
+        .replace(/###\s+(.*?)(\n|$)/g, '<h3 class="text-lg font-semibold mt-2 mb-1">$1</h3>') // H3 headers
+        .replace(/\n/g, '<br>'); // Line breaks
+        
+      return (
+        <div 
+          className={cn("text-sm", message.role === "assistant" ? "text-gray-800" : "text-white")}
+          dangerouslySetInnerHTML={{ __html: formatted }}
+        />
+      );
+    };
       
-      // Ensure voices are ready
-      await forceVoiceInit();
-      
-      // Create and configure utterance
-      const utterance = new SpeechSynthesisUtterance(testPhrase);
-      utterance.volume = 1.0; // Full volume
-      utterance.rate = 1.0;
-      
-      // Set voice if available
-      if (window.speechSynthesis.getVoices().length > 0) {
-        const voices = window.speechSynthesis.getVoices();
-        const englishVoice = voices.find(v => 
-          v.lang === 'en-US' || v.lang.startsWith('en')
-        );
-        if (englishVoice) utterance.voice = englishVoice;
-      }
-      
-      // First make sure any current speech is stopped
-      window.speechSynthesis.cancel();
-      
-      // Speak the test phrase
-      window.speechSynthesis.speak(utterance);
-      
-      // Ensure it's not paused (Chrome bug)
-      window.speechSynthesis.resume();
-      
-      console.log('Test speech sent to browser');
-    } catch (error) {
-      console.error("Error during voice test:", error);
-    }
-  };
-  
-  const renderMessage = (message: Message) => (
-    <div
-      key={message.id}
-      className={cn(
-        "flex items-start gap-3 p-4 rounded-lg max-w-[85%] mb-3",
-        message.role === "assistant"
-          ? "self-start bg-gray-100"
-          : "self-end bg-indigo-600 text-white"
-      )}
-    >
-      {message.role === "assistant" && (
-        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-xl">
-          {sessionType === "topic" ? "👩‍🏫" : "👩‍💼"}
+    return (
+      <div
+        key={message.id}
+        className={cn(
+          "flex items-start gap-3 p-4 rounded-lg max-w-[85%] mb-3",
+          message.role === "assistant"
+            ? "self-start bg-gray-100"
+            : "self-end bg-indigo-600 text-white"
+        )}
+      >
+        {message.role === "assistant" && (
+          <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-xl">
+            {sessionType === "topic" ? "👩‍🏫" : "👩‍💼"}
+          </div>
+        )}
+        <div className="flex flex-col">
+          {formatText(message.content)}
+          <div className={cn("text-xs mt-1", 
+            message.role === "assistant" ? "text-gray-500" : "text-indigo-100"
+          )}>
+            {message.timestamp.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
         </div>
-      )}
-      <div className="flex flex-col">
-        <div className={cn("text-sm", message.role === "assistant" ? "text-gray-800" : "text-white")}>
-          {message.content}
-        </div>
-        <div className={cn("text-xs mt-1", 
-          message.role === "assistant" ? "text-gray-500" : "text-indigo-100"
-        )}>
-          {message.timestamp.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </div>
+        {message.role === "user" && (
+          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-xl">
+            👤
+          </div>
+        )}
       </div>
-      {message.role === "user" && (
-        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-xl">
-          👤
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
   
   const getSessionTitle = () => {
     switch (sessionType) {
