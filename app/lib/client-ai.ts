@@ -1,15 +1,13 @@
-export type Message = {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-};
+import { Message } from '../api/ai/route';
 
-// Client-side version of the AI functions
-
-// Generate an AI response (client-side function that calls the API)
+// Client-side function to generate AI response
 export async function generateInterviewResponse(
   messages: Message[],
   interviewType: string,
-  topic: string
+  topic: string,
+  notes: string = '',
+  details: Record<string, any> = {},
+  options: Record<string, any> = {}
 ): Promise<string> {
   try {
     const response = await fetch('/api/ai', {
@@ -22,22 +20,25 @@ export async function generateInterviewResponse(
         interviewType,
         topic,
         action: 'response',
+        notes,
+        details,
+        max_tokens: options.max_tokens || 1000, // Increase max tokens to prevent truncation
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`AI response error: ${response.status}`);
+      throw new Error(`Failed to generate response: ${response.status}`);
     }
 
     const data = await response.json();
-    return data.response;
+    return data.response || "I apologize, but I'm having trouble responding at the moment.";
   } catch (error) {
     console.error('Error generating AI response:', error);
-    return "I apologize, but I'm experiencing technical difficulties. Let's try again in a moment.";
+    return "I apologize, but I'm experiencing technical difficulties. Please try again.";
   }
 }
 
-// Generate interview feedback (client-side function that calls the API)
+// Client-side function to generate interview feedback
 export async function generateInterviewFeedback(
   messages: Message[],
   interviewType: string,
@@ -54,25 +55,29 @@ export async function generateInterviewFeedback(
         interviewType,
         topic,
         action: 'feedback',
+        max_tokens: 1000, // Ensure feedback isn't truncated
       }),
-      // Add timeout to prevent hanging requests
-      signal: AbortSignal.timeout(30000), // 30 second timeout
     });
 
     if (!response.ok) {
-      throw new Error(`AI feedback error: ${response.status}`);
+      throw new Error(`Failed to generate feedback: ${response.status}`);
     }
 
     const data = await response.json();
+    
+    if (!data.feedback) {
+      throw new Error('No feedback data returned');
+    }
+    
     return data.feedback;
   } catch (error) {
-    console.error('Error generating feedback:', error);
+    console.error('Error generating interview feedback:', error);
     
-    // Return fallback feedback
+    // Return basic feedback as a fallback
     return {
-      summary: "Session completed. There was an issue generating detailed feedback.",
-      strengths: ["Completed the interview session"],
-      improvements: ["Try another session"],
+      summary: "The session was completed, but we were unable to generate detailed feedback.",
+      strengths: ["Participation in the interview"],
+      improvements: ["Try another session for more specific feedback"],
     };
   }
 } 

@@ -14,10 +14,10 @@ export type Message = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, interviewType, topic, action, notes = '', details = {} } = await request.json();
+    const { messages, interviewType, topic, action, notes = '', details = {}, max_tokens = 500 } = await request.json();
     
     if (action === 'response') {
-      const response = await generateInterviewResponse(messages, interviewType, topic, notes, details);
+      const response = await generateInterviewResponse(messages, interviewType, topic, notes, details, max_tokens);
       return NextResponse.json({ response });
     } else if (action === 'feedback') {
       const feedback = await generateInterviewFeedback(messages, interviewType, topic);
@@ -40,7 +40,8 @@ async function generateInterviewResponse(
   interviewType: string,
   topic: string,
   notes: string,
-  details: Record<string, any>
+  details: Record<string, any>,
+  max_tokens: number = 500
 ): Promise<string> {
   try {
     // Determine system prompt based on interview type
@@ -505,7 +506,7 @@ async function generateInterviewResponse(
       model: 'gpt-4-turbo',
       messages: fullMessages,
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: max_tokens,
     });
     
     return completion.choices[0].message.content || "I'm sorry, I couldn't generate a response.";

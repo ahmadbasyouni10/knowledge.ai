@@ -224,11 +224,21 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         // For mock interviews, use the details to customize the intro
         const role = details.role || topic;
         const company = details.company || "a company";
-        const experience = details.experience || "this role";
+        
+        // Fix experience text formatting
+        let experienceText = "this role";
+        if (details.experience === "entry") {
+          experienceText = "entry-level positions (0-2 years)";
+        } else if (details.experience === "mid") {
+          experienceText = "mid-level positions (3-5 years)";
+        } else if (details.experience === "senior") {
+          experienceText = "senior positions (6+ years)";
+        }
+        
         const specificSkills = details.specificSkills || "";
         
         // Create a mock interview introduction
-        introMessage = `Welcome to your mock interview for the ${role} position at ${company}. I'll be your interviewer today. I'll ask you questions related to ${topic} and your experience with ${experience}.`;
+        introMessage = `Welcome to your mock interview for the ${role} position at ${company}. I'll be your interviewer today. I'll ask you questions related to ${topic} and your experience with ${experienceText}.`;
         
         if (specificSkills) {
           introMessage += ` I'll focus particularly on your skills with ${specificSkills}.`;
@@ -392,9 +402,11 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     audioChunksRef.current = [];
     
     try {
+      // Show loading indicator for transcription
       setIsLoading(true);
+      setTranscript("Transcribing audio...");
+      
       const transcription = await transcribeAudio(audioBlob);
-      setIsLoading(false);
       
       if (transcription) {
         setUserInput(transcription);
@@ -402,12 +414,14 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         // Automatically send the message after transcription is complete
         handleSendMessage(transcription);
       } else {
-        setUserInput(""); // No transcription available
+        setTranscript(""); // Reset if no transcription
+        setIsLoading(false); // Only reset loading if we're not sending a message
       }
     } catch (error) {
       console.error("Error transcribing audio:", error);
       alert("There was an error processing your speech. Please try again or use text input.");
       setIsLoading(false);
+      setTranscript("");
     }
   };
   
@@ -513,11 +527,11 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     setLiveTranscript("");
     setIsLoading(true);
     
-    // Save the user message to Convex if we have an ID
+    // Save the user message to session storage
     const sessionData = JSON.parse(sessionStorage.getItem('interviewSession') || '{}');
     if (sessionData?.id) {
       try {
-        // Instead of calling the failing API endpoint, save to session storage
+        // Save to session storage
         const historyJson = sessionStorage.getItem('interviewHistory') || '[]';
         const history = JSON.parse(historyJson);
         
@@ -536,16 +550,14 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
           });
           sessionStorage.setItem('interviewHistory', JSON.stringify(history));
         }
-        
-        // No API call needed - everything stored in sessionStorage
       } catch (e) {
-        // Silently fail - we don't want to interrupt the interview flow
         console.error('Error saving message to session storage:', e);
       }
     }
     
-    // AI is thinking
+    // AI is thinking - explicitly set thinking state for UX
     setIsThinking(true);
+    setIsLoading(true);
     
     try {
       // Convert messages for AI format
@@ -603,7 +615,9 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
       const aiResponseText = await generateInterviewResponse(
         aiMessages,
         contextEnhancedSessionType,
-        topic
+        topic,
+        notes,
+        details
       );
       
       // Add AI response to messages
@@ -657,18 +671,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
           // Force re-initialize voice capabilities before speaking
           forceVoiceInit().then(() => {
             // Now play the new response with a retry mechanism
-            playAudioResponse(aiResponseText)
-              .catch(err => {
-                console.error('Error playing AI response audio:', err);
-                // Try once more with a direct approach
-                try {
-                  const utterance = new SpeechSynthesisUtterance(aiResponseText);
-                  utterance.rate = speechRate;
-                  window.speechSynthesis.speak(utterance);
-                } catch (finalErr) {
-                  console.error('Final attempt failed:', finalErr);
-                }
-              });
+            safelySpeakText(aiResponseText);
           });
         } catch (error) {
           console.error('Error in speech preparation:', error);
@@ -889,6 +892,8 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
           action: 'response',
           notes,
           details,
+          // Add explicit request for larger max_tokens to prevent truncation
+          max_tokens: 1000
         }),
       });
       
@@ -967,6 +972,21 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
           <div className="flex-1 overflow-hidden flex flex-col">
             <div className="flex flex-col space-y-1 p-4 h-full overflow-y-auto">
               {messages.map(renderMessage)}
+              
+              {/* Add thinking indicator that appears at the bottom of the chat */}
+              {isThinking && (
+                <div className="self-start bg-gray-100 p-3 rounded-lg flex items-center space-x-2 animate-pulse">
+                  <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-lg">
+                    {sessionType === "topic" ? "👩‍🏫" : "👩‍💼"}
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></div>
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></div>
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                  </div>
+                  <span className="text-sm text-gray-500">Thinking...</span>
+                </div>
+              )}
             </div>
             
             <div className="p-4 border-t">
@@ -1025,7 +1045,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
                       value={userInput}
                       onChange={(e) => setUserInput(e.target.value)}
                       onKeyDown={handleKeyPress}
-                      placeholder={isListening ? "Listening..." : isSpeaking ? "AI is speaking..." : "Type your response..."}
+                      placeholder={isListening ? "Listening..." : isSpeaking ? "AI is speaking..." : isLoading ? "Processing..." : "Type your response..."}
                       className="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       rows={2}
                       disabled={isLoading || isListening || isSpeaking}
@@ -1040,11 +1060,15 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
                         className={cn(
                           "rounded-full w-10 h-10 p-0 flex items-center justify-center",
                           isListening ? "animate-pulse bg-red-500" : "",
-                          isSpeaking ? "opacity-50 cursor-not-allowed" : ""
+                          isSpeaking ? "opacity-50 cursor-not-allowed" : "",
+                          isLoading && !isListening ? "opacity-50 cursor-not-allowed bg-yellow-500" : ""
                         )}
                       >
                         {isListening ? (
                           <PauseIcon className="w-5 h-5" />
+                        ) : isLoading && !isListening ? (
+                          // Show a loading spinner when processing but not listening
+                          <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                           <MicrophoneIcon className="w-5 h-5" />
                         )}
