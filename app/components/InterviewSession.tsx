@@ -314,64 +314,151 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
   // Safe wrapper for speaking text
   const safelySpeakText = (text: string) => {
     try {
+      console.log('Starting safelySpeakText with length:', text.length);
+      
       // Make sure speech synthesis is available
       if (!window.speechSynthesis) {
         console.error('Speech synthesis not available');
         return;
       }
       
-      // Cancel any ongoing speech
+      // First ensure no other speech is happening
       window.speechSynthesis.cancel();
       
-      // Create and configure utterance
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = speechRate;
-      utterance.volume = 1.0;
-      
-      // Find a suitable voice
-      const voices = window.speechSynthesis.getVoices();
-      const goodVoices = voices.filter(v => 
-        (v.lang === 'en-US' || v.lang.startsWith('en')) && 
-        !v.name.includes('Zira') // Skip problematic voices
-      );
-      
-      if (goodVoices.length > 0) {
-        // Prefer Google voices first
-        const googleVoice = goodVoices.find(v => v.name.includes('Google'));
-        if (googleVoice) {
-          utterance.voice = googleVoice;
-        } else {
-          utterance.voice = goodVoices[0];
-        }
-      }
-      
-      // Mark as speaking
-      setIsSpeaking(true);
-      
-      // Set up event handlers
-      utterance.onend = () => {
-        console.log('Speech completed successfully');
-        setIsSpeaking(false);
-      };
-      
-      utterance.onerror = (e) => {
-        console.error('Speech error:', e);
-        setIsSpeaking(false);
-      };
-      
-      // Start speaking
-      window.speechSynthesis.speak(utterance);
-      
-      // Ensure it's not paused (Chrome bug)
-      window.speechSynthesis.resume();
-      
-      // Safety timeout to reset speaking state if onend/onerror don't fire
+      // Wait for a moment before starting new speech
       setTimeout(() => {
-        if (isSpeaking) {
-          console.log('Speech timeout reached, resetting state');
+        try {
+          // Mark as speaking
+          setIsSpeaking(true);
+          
+          // Prepare text - handle specific patterns that might cause issues
+          // Split text into smaller, manageable chunks on natural boundaries
+          const sentences = text.split(/(?<=[.!?])\s+/);
+          const chunks: string[] = [];
+          let currentChunk = '';
+          const maxChunkSize = 150; // Smaller chunks are more reliable
+          
+          for (const sentence of sentences) {
+            // If this sentence would make the chunk too long, start a new chunk
+            if (currentChunk.length + sentence.length > maxChunkSize) {
+              if (currentChunk) {
+                chunks.push(currentChunk);
+              }
+              
+              // If the sentence itself is very long, split it further at commas or other natural pauses
+              if (sentence.length > maxChunkSize) {
+                const fragments = sentence.split(/(?<=,|;)\s+/);
+                let fragment = '';
+                
+                for (const piece of fragments) {
+                  if (fragment.length + piece.length > maxChunkSize) {
+                    if (fragment) chunks.push(fragment);
+                    fragment = piece;
+                  } else {
+                    fragment += (fragment ? ' ' : '') + piece;
+                  }
+                }
+                
+                if (fragment) {
+                  currentChunk = fragment;
+                } else {
+                  currentChunk = '';
+                }
+              } else {
+                currentChunk = sentence;
+              }
+            } else {
+              currentChunk += (currentChunk ? ' ' : '') + sentence;
+            }
+          }
+          
+          // Add the last chunk if there is one
+          if (currentChunk) {
+            chunks.push(currentChunk);
+          }
+          
+          console.log(`Split text into ${chunks.length} chunks for more reliable speech`);
+          
+          // Find a suitable voice
+          const voices = window.speechSynthesis.getVoices();
+          const goodVoices = voices.filter(v => 
+            (v.lang === 'en-US' || v.lang.startsWith('en')) && 
+            !v.name.includes('Zira') // Skip problematic voices
+          );
+          
+          let selectedVoice: SpeechSynthesisVoice | null = null;
+          if (goodVoices.length > 0) {
+            // Prefer Google voices first, then Microsoft, then any good English voice
+            const googleVoice = goodVoices.find(v => v.name.includes('Google'));
+            const microsoftVoice = goodVoices.find(v => v.name.includes('Microsoft'));
+            selectedVoice = googleVoice || microsoftVoice || goodVoices[0];
+          }
+          
+          // Speak each chunk sequentially
+          let currentChunkIndex = 0;
+          
+          function speakNextChunk() {
+            if (currentChunkIndex >= chunks.length) {
+              console.log('All chunks spoken, finishing speech');
+              setIsSpeaking(false);
+              return;
+            }
+            
+            try {
+              const utterance = new SpeechSynthesisUtterance(chunks[currentChunkIndex]);
+              
+              // Configure the utterance
+              utterance.rate = speechRate;
+              utterance.volume = 1.0;
+              
+              if (selectedVoice) {
+                utterance.voice = selectedVoice;
+              }
+              
+              // Set up the handlers
+              utterance.onend = () => {
+                console.log(`Chunk ${currentChunkIndex + 1}/${chunks.length} completed`);
+                currentChunkIndex++;
+                
+                // Small delay between chunks for more natural speech
+                setTimeout(speakNextChunk, 50);
+              };
+              
+              utterance.onerror = (e) => {
+                console.error(`Speech error on chunk ${currentChunkIndex + 1}:`, e);
+                
+                // Move to next chunk even if there's an error
+                currentChunkIndex++;
+                setTimeout(speakNextChunk, 50);
+              };
+              
+              // Start speaking this chunk
+              window.speechSynthesis.speak(utterance);
+              
+              // Chrome bug workaround - make sure it's not paused
+              window.speechSynthesis.resume();
+            } catch (chunkError) {
+              console.error(`Error speaking chunk ${currentChunkIndex + 1}:`, chunkError);
+              currentChunkIndex++;
+              setTimeout(speakNextChunk, 50);
+            }
+          }
+          
+          // Start the speech chain
+          speakNextChunk();
+          
+          // Safety timeout to reset speaking state if onend/onerror don't fire
+          setTimeout(() => {
+            if (isSpeaking) {
+              console.log('Speech timeout reached, resetting state');
+              setIsSpeaking(false);
+            }
+          }, 30000); // 30-second timeout
+        } catch (innerError) {
+          console.error('Error in speech attempt:', innerError);
           setIsSpeaking(false);
         }
-      }, 30000); // 30-second timeout
+      }, 300); // Add delay before starting new speech
       
     } catch (error) {
       console.error('Error in safelySpeakText:', error);
@@ -920,16 +1007,6 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
             <>
               {/* Speech rate controls - FIXED: Updated colors for better visibility */}
               <div className="flex items-center space-x-2">
-                <button
-                  onClick={stopSpeaking}
-                  className={`p-1 rounded ${isSpeaking ? 'bg-red-100 text-red-800 hover:bg-red-200' : 'bg-gray-100 text-gray-400'}`}
-                  disabled={!isSpeaking}
-                  aria-label="Stop speaking"
-                  title="Skip AI speaking"
-                >
-                  <StopIcon className="h-4 w-4" />
-                </button>
-                
                 <div className="flex items-center">
                   <span className="text-xs text-gray-700 mr-1 font-medium">Speed:</span>
                   <select
@@ -1109,28 +1186,19 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
             
             {isSpeaking && (
               <div className="mt-4 flex flex-col items-center">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Button 
-                    size="sm" 
-                    onClick={stopSpeaking}
-                    className="bg-red-500 hover:bg-red-600 text-white"
+                <div className="flex items-center space-x-1">
+                  <span className="text-xs text-gray-700 font-medium">Speaking Rate:</span>
+                  <select 
+                    value={speechRate}
+                    onChange={(e) => handleSpeechRateChange(parseFloat(e.target.value))}
+                    className="text-xs border border-gray-300 rounded p-1 bg-white text-gray-800"
                   >
-                    Skip
-                  </Button>
-                  <div className="flex items-center space-x-1">
-                    <span className="text-xs text-gray-700 font-medium">Speed:</span>
-                    <select 
-                      value={speechRate}
-                      onChange={(e) => handleSpeechRateChange(parseFloat(e.target.value))}
-                      className="text-xs border border-gray-300 rounded p-1 bg-white text-gray-800"
-                    >
-                      <option value="0.8">0.8x</option>
-                      <option value="1.0">1.0x</option>
-                      <option value="1.2">1.2x</option>
-                      <option value="1.5">1.5x</option>
-                      <option value="2.0">2.0x</option>
-                    </select>
-                  </div>
+                    <option value="0.8">0.8x</option>
+                    <option value="1.0">1.0x</option>
+                    <option value="1.2">1.2x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2.0">2.0x</option>
+                  </select>
                 </div>
               </div>
             )}
@@ -1154,20 +1222,13 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
       <div className="absolute bottom-20 right-4 flex flex-col items-end space-y-2">
         {isConnected && (
           <>
-            {/* Speaking indicator and stop button - FIXED: Updated colors for visibility */}
+            {/* Speaking indicator without stop button */}
             {isSpeaking && (
               <div className="bg-white/90 backdrop-blur-md p-2 rounded-lg shadow-md flex items-center space-x-2 border border-gray-200">
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-xs font-medium text-gray-800">Speaking</span>
                 </div>
-                <button 
-                  onClick={stopSpeaking}
-                  className="p-1 rounded-full bg-red-500/80 hover:bg-red-500 transition-colors"
-                  title="Stop speaking"
-                >
-                  <StopIcon className="w-4 h-4 text-white" />
-                </button>
               </div>
             )}
           </>
