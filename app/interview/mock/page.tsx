@@ -59,6 +59,13 @@ export default function MockInterviewPage() {
           area.includes('algorithm') || 
           area.includes('leetcode') ||
           area.includes('data structure'));
+      
+      // Check for specific system design projects
+      const hasChatAppFocus = 
+        parsedFocusAreas.some(area => 
+          area.includes('chat') || 
+          area.includes('messaging') ||
+          area.includes('communication'));
           
       // Process notes to include explicit instructions about coding
       let enhancedNotes = notes;
@@ -68,6 +75,12 @@ export default function MockInterviewPage() {
         enhancedNotes += "\nIMPORTANT: DO NOT ask the candidate to write actual code. " +
           "This interview is verbal only. Focus on algorithm descriptions, time/space complexity, " +
           "and trade-offs. Let the candidate explain approaches rather than writing code.";
+      }
+      
+      // Add explicit instruction about system design focus if specified
+      if (interviewType === 'system-design' && specificSkills.trim()) {
+        enhancedNotes += "\nIMPORTANT: Focus the system design interview on the specific topics/applications mentioned in the skills field. " +
+          "Avoid generic examples unless the candidate is struggling with the specified topics.";
       }
         
       // Create interview details
@@ -88,6 +101,7 @@ export default function MockInterviewPage() {
           ...(hasFocusOnGraphs ? ["graph algorithms"] : []),
           ...(hasFocusOnSystemDesign ? ["system design"] : []),
           ...(hasFocusOnCoding ? ["coding algorithms"] : []),
+          ...(hasChatAppFocus ? ["chat application", "messaging system"] : []),
           // Then add the raw parsed areas
           ...parsedFocusAreas
         ].filter(Boolean),

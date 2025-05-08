@@ -14,10 +14,10 @@ export type Message = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, interviewType, topic, action, notes: _ = '', details: __ = {} } = await request.json();
+    const { messages, interviewType, topic, action, notes = '', details = {} } = await request.json();
     
     if (action === 'response') {
-      const response = await generateInterviewResponse(messages, interviewType, topic, '', {});
+      const response = await generateInterviewResponse(messages, interviewType, topic, notes, details);
       return NextResponse.json({ response });
     } else if (action === 'feedback') {
       const feedback = await generateInterviewFeedback(messages, interviewType, topic);
@@ -40,7 +40,7 @@ async function generateInterviewResponse(
   interviewType: string,
   topic: string,
   notes: string,
-  details: Record<string, string>
+  details: Record<string, any>
 ): Promise<string> {
   try {
     // Determine system prompt based on interview type
@@ -82,13 +82,33 @@ async function generateInterviewResponse(
                               additionalNotes.toLowerCase().includes('no code') ||
                               additionalNotes.toLowerCase().includes('don\'t ask to code');
     
+    // Check for specific focus areas in the details provided
+    const focusAreas = details?.focusAreas || [];
+    const hasChatAppFocus = focusAreas.some((area: string) => 
+      area.toLowerCase().includes('chat') || 
+      area.toLowerCase().includes('messaging')
+    );
+    
     if (interviewType.includes('system design') || hasFocusOnSystemDesign) {
       systemPrompt = `You are an expert technical interviewer specializing in system design interviews for ${topic} positions.
       
       IMPORTANT INSTRUCTIONS:
       1. Focus ONLY on system design questions and concepts. Do not get distracted by personal topics.
-      2. Ask challenging but fair system design questions that assess the candidate's ability to design scalable systems.
-      3. Start with a specific system design problem (like designing a URL shortener, social media platform, etc.)
+      2. Ask challenging but fair system design questions that assess the candidate's ability to design scalable systems.`;
+      
+      // Prioritize the specific type of system design based on user's input
+      if (hasChatAppFocus) {
+        systemPrompt += `
+      3. Ask the candidate to design a chat application or messaging platform.`;
+      } else if (notes.toLowerCase().includes('chat') || notes.toLowerCase().includes('messaging')) {
+        systemPrompt += `
+      3. Ask the candidate to design a chat application or messaging platform.`;
+      } else {
+        systemPrompt += `
+      3. Start with a specific system design problem based on their expertise or industry.`;
+      }
+      
+      systemPrompt += `
       4. Ask follow-up questions on scalability, database choice, caching strategies, load balancing, etc.
       5. Provide constructive feedback on design decisions.
       6. Keep your responses concise and professional. Maintain focus on technical system design assessment.
@@ -185,6 +205,11 @@ async function generateInterviewResponse(
     // Add the additional notes to the system prompt if they exist
     if (additionalNotes) {
       systemPrompt += `\n\nADDITIONAL CONTEXT (DO NOT MENTION DIRECTLY): ${additionalNotes}\n`;
+    }
+    
+    // Add context about focus areas if they exist
+    if (focusAreas && focusAreas.length > 0) {
+      systemPrompt += `\n\nFOCUS AREAS (PRIORITIZE THESE TOPICS): ${focusAreas.join(', ')}\n`;
     }
     
     // Add system message to the beginning if not already present
