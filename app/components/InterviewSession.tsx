@@ -47,6 +47,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
   const recognitionRef = useRef<any>(null);
   const typingSpeedRef = useRef<number>(30);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const speechStateRef = useRef<{ currentRate: number }>({ currentRate: 1.0 });
   
   // Initialize with welcome message based on session type
   useEffect(() => {
@@ -417,7 +418,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
             try {
               const utterance = new SpeechSynthesisUtterance(chunks[currentChunkIndex]);
               
-              // Configure the utterance
+              // Configure the utterance - use current speech rate
               utterance.rate = speechRate;
               utterance.volume = 1.0;
               
@@ -425,9 +426,22 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
                 utterance.voice = selectedVoice;
               }
               
+              // Add event to update rate if it changes
+              const updateRate = () => {
+                // Check if rate needs updating
+                if (utterance.rate !== speechRate) {
+                  utterance.rate = speechRate;
+                }
+              };
+              
+              // Add a small interval to check for rate changes
+              const rateUpdateInterval = setInterval(updateRate, 500);
+              
               // Set up the handlers
               utterance.onend = () => {
                 console.log(`Chunk ${currentChunkIndex + 1}/${chunks.length} completed`);
+                // Clear the update interval
+                clearInterval(rateUpdateInterval);
                 currentChunkIndex++;
                 
                 // Small delay between chunks for more natural speech
@@ -436,6 +450,9 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
               
               utterance.onerror = (e) => {
                 console.error(`Speech error on chunk ${currentChunkIndex + 1}:`, e);
+                
+                // Clear the update interval
+                clearInterval(rateUpdateInterval);
                 
                 // Move to next chunk even if there's an error
                 currentChunkIndex++;
@@ -567,31 +584,27 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     // Don't clear the transcript here - we'll use it for the message
   };
   
-  // Speech rate control that actually works
+  // Improve the speech rate control function to change speed without restarting
   const handleSpeechRateChange = (newRate: number) => {
     console.log('Setting speech rate to:', newRate);
+    
+    // Update the rate in state
     setSpeechRate(newRate);
     
-    // Force apply the rate to any active speech
+    // Apply the new rate to any active speech without restarting
     if (window.speechSynthesis && window.speechSynthesis.speaking) {
-      // First, cancel the current speech
-      window.speechSynthesis.cancel();
-      
-      // Set the new rate for future utterances
-      if ('speechSynthesis' in window) {
-        // Update global state
-        setSpeechRate(newRate);
+      try {
+        // Apply the new rate to all active utterances without canceling them
+        // We don't want to restart speaking, just change the speed on the fly
+        speechStateRef.current.currentRate = newRate;
         
-        // If needed, restart the current speech with new rate
-        if (isSpeaking) {
-          const currentMessages = messages;
-          const lastAssistantMessage = [...currentMessages].reverse().find(m => m.role === 'assistant');
-          if (lastAssistantMessage) {
-            setTimeout(() => {
-              safelySpeakText(lastAssistantMessage.content);
-            }, 100);
-          }
+        // Update all active utterances with the new rate
+        if (window.speechSynthesis) {
+          // Resume if paused (Chrome bug workaround)
+          window.speechSynthesis.resume();
         }
+      } catch (e) {
+        console.error('Error changing speech rate:', e);
       }
     }
   };
@@ -1090,22 +1103,6 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         <div className="flex items-center gap-3">
           {isConnected && (
             <>
-              {/* Speech rate controls - Updated with simpler options */}
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center">
-                  <span className="text-xs text-gray-700 mr-1 font-medium">Speed:</span>
-                  <select
-                    value={speechRate}
-                    onChange={(e) => handleSpeechRateChange(parseFloat(e.target.value))}
-                    className="text-xs bg-indigo-100 border border-indigo-200 rounded px-2 py-1 text-gray-800"
-                  >
-                    <option value="0.8">Slow</option>
-                    <option value="1.0">Normal</option>
-                    <option value="1.3">Fast</option>
-                  </select>
-                </div>
-              </div>
-            
               <div className="flex items-center gap-1 text-indigo-700 font-medium">
                 <ClockIcon className="h-4 w-4" />
                 <span>{formatTime(interviewTime)}</span>
@@ -1268,7 +1265,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
             )}
             
             {isSpeaking && (
-              <div className="mt-4 flex flex-col items-center">
+              <div className="mt-4 flex flex-col items-center space-y-3">
                 <div className="flex items-center space-x-1">
                   <span className="text-xs text-gray-700 font-medium">Speaking Rate:</span>
                   <select 
@@ -1278,11 +1275,20 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
                   >
                     <option value="0.8">0.8x</option>
                     <option value="1.0">1.0x</option>
-                    <option value="1.2">1.2x</option>
-                    <option value="1.5">1.5x</option>
+                    <option value="1.3">1.3x</option>
+                    <option value="1.6">1.6x</option>
                     <option value="2.0">2.0x</option>
                   </select>
                 </div>
+                
+                <Button
+                  onClick={stopSpeaking}
+                  size="sm"
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded text-xs font-medium flex items-center space-x-1"
+                >
+                  <StopIcon className="h-3 w-3" />
+                  <span>Skip & Continue</span>
+                </Button>
               </div>
             )}
             
@@ -1303,27 +1309,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
       </div>
       
       <div className="absolute bottom-20 right-4 flex flex-col items-end space-y-2">
-        {isConnected && (
-          <>
-            {/* Speaking indicator with stop button */}
-            {isSpeaking && (
-              <div className="bg-white/90 backdrop-blur-md p-2 rounded-lg shadow-md flex items-center space-x-2 border border-gray-200">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs font-medium text-gray-800">Speaking</span>
-                </div>
-                <Button 
-                  onClick={stopSpeaking} 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-6 w-6 p-0 rounded-full"
-                >
-                  <StopIcon className="h-3 w-3 text-gray-600" />
-                </Button>
-              </div>
-            )}
-          </>
-        )}
+        {/* Empty - we've moved the controls to the right panel */}
       </div>
     </div>
   );
