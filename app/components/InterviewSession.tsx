@@ -476,13 +476,11 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     }
   };
   
-  // New function to test voice
+  // Function to test voice (Removing this feature)
   const testVoice = async () => {
     try {
-      console.log('Testing voice functionality...');
-      const testPhrase = "Voice system initialized and ready.";
-      
-      safelySpeakText(testPhrase);
+      console.log('Voice functionality initialized silently');
+      // Don't speak any test phrase anymore
     } catch (error) {
       console.error("Error during voice test:", error);
     }
@@ -569,12 +567,32 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
     // Don't clear the transcript here - we'll use it for the message
   };
   
-  // Speech rate control and speech handling
+  // Speech rate control that actually works
   const handleSpeechRateChange = (newRate: number) => {
+    console.log('Setting speech rate to:', newRate);
     setSpeechRate(newRate);
-    // If currently speaking, update the rate immediately
-    if (isSpeaking) {
-      setSpeechRate(newRate);
+    
+    // Force apply the rate to any active speech
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+      // First, cancel the current speech
+      window.speechSynthesis.cancel();
+      
+      // Set the new rate for future utterances
+      if ('speechSynthesis' in window) {
+        // Update global state
+        setSpeechRate(newRate);
+        
+        // If needed, restart the current speech with new rate
+        if (isSpeaking) {
+          const currentMessages = messages;
+          const lastAssistantMessage = [...currentMessages].reverse().find(m => m.role === 'assistant');
+          if (lastAssistantMessage) {
+            setTimeout(() => {
+              safelySpeakText(lastAssistantMessage.content);
+            }, 100);
+          }
+        }
+      }
     }
   };
   
@@ -694,7 +712,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         ? details.specificSkills.trim() 
         : "";
       
-      // Create a focused context with clear instructions
+      // Create a focused context with clear instructions and strong memory
       const contextEnhancedSessionType = sessionType === 'mock'
         ? `You are an expert interviewer conducting a ${interviewFocus} for the position of ${topic}. 
            Stay strictly focused on ${details?.focusAreas?.join(', ') || topic} without getting sidetracked by personal details. 
@@ -702,6 +720,8 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
            ${isSystemDesignInterview ? `IMPORTANT: This is a SYSTEM DESIGN interview. Your role is to interview the candidate about designing a system.` : ''}
            ${isSystemDesignInterview && systemToDesign ? `CRITICALLY IMPORTANT: Focus ONLY on designing a ${systemToDesign.toUpperCase()} system. Do NOT ask which system they want to design. ASSUME they already know they are designing a ${systemToDesign.toUpperCase()} and IMMEDIATELY begin with questions about requirements gathering for a ${systemToDesign.toUpperCase()}.` : ''}
            ${isSystemDesignInterview && systemToDesign ? `ANTI-HALLUCINATION DIRECTIVE: NEVER mention ANY other system type. Do NOT talk about e-commerce if this is about a chat app. Do NOT talk about URL shorteners if this is about a social media platform. STRICTLY maintain focus on ${systemToDesign.toUpperCase()} for the ENTIRE interview. If your response includes ANY mention of a different system, it is INCORRECT.` : ''}
+           ${isSystemDesignInterview && systemToDesign ? `MEMORY DIRECTIVE: Always remember that the interview topic is designing a ${systemToDesign.toUpperCase()} system. Reference the candidate's previous answers and build on them. Don't restart the topic or ask questions already answered. Maintain continuity in the conversation.` : ''}
+           ${isSystemDesignInterview && systemToDesign ? `If the candidate asks if they should answer, say YES and continue the interview focused on the ${systemToDesign.toUpperCase()} system.` : ''}
            ${details?.interviewType === 'coding' ? `IMPORTANT: Stay focused on coding questions related to ${details?.specificSkills || "algorithms and data structures"}. Do NOT switch topics to system design or other unrelated areas.` : ''}
            ${details?.interviewType === 'frontend' ? `IMPORTANT: Stay focused on frontend development questions related to ${details?.specificSkills || "UI frameworks, CSS, and JavaScript"}. Do NOT switch topics to backend or system design.` : ''}
            ${details?.interviewType === 'backend' ? `IMPORTANT: Stay focused on backend development questions related to ${details?.specificSkills || "APIs, databases, and server architecture"}. Do NOT switch topics to frontend or system design.` : ''}
@@ -948,10 +968,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
   
   const handleConnect = () => {
     setupAudioRecording();
-    // Test voice immediately after connecting
-    setTimeout(() => {
-      testVoice();
-    }, 500);
+    // Don't run the test voice - it's no longer needed
   };
   
   // Render message with proper markdown formatting

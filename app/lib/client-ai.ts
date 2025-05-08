@@ -22,7 +22,7 @@ export async function generateInterviewResponse(
         action: 'response',
         notes,
         details,
-        max_tokens: options.max_tokens || 1000, // Increase max tokens to prevent truncation
+        max_tokens: options.max_tokens || 1500, // Increase max tokens to prevent truncation
       }),
     });
 

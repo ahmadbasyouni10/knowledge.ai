@@ -41,7 +41,7 @@ async function generateInterviewResponse(
   topic: string,
   notes: string,
   details: Record<string, any>,
-  max_tokens: number = 500
+  max_tokens: number = 1500
 ): Promise<string> {
   try {
     // Determine system prompt based on interview type
