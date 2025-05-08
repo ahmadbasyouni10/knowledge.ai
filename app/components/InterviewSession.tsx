@@ -586,6 +586,10 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
            Ask technical questions appropriate for a ${details?.experience || 'mid-level'} position.
            ${isSystemDesignInterview ? `IMPORTANT: This is a SYSTEM DESIGN interview. Your role is to interview the candidate about designing a system.` : ''}
            ${isSystemDesignInterview && systemToDesign ? `CRITICALLY IMPORTANT: Focus ONLY on designing a ${systemToDesign.toUpperCase()} system. Do NOT ask which system they want to design. ASSUME they already know they are designing a ${systemToDesign.toUpperCase()} and IMMEDIATELY begin with questions about requirements gathering for a ${systemToDesign.toUpperCase()}.` : ''}
+           ${isSystemDesignInterview && systemToDesign ? `ANTI-HALLUCINATION DIRECTIVE: NEVER mention ANY other system type. Do NOT talk about e-commerce if this is about a chat app. Do NOT talk about URL shorteners if this is about a social media platform. STRICTLY maintain focus on ${systemToDesign.toUpperCase()} for the ENTIRE interview. If your response includes ANY mention of a different system, it is INCORRECT.` : ''}
+           ${details?.interviewType === 'coding' ? `IMPORTANT: Stay focused on coding questions related to ${details?.specificSkills || "algorithms and data structures"}. Do NOT switch topics to system design or other unrelated areas.` : ''}
+           ${details?.interviewType === 'frontend' ? `IMPORTANT: Stay focused on frontend development questions related to ${details?.specificSkills || "UI frameworks, CSS, and JavaScript"}. Do NOT switch topics to backend or system design.` : ''}
+           ${details?.interviewType === 'backend' ? `IMPORTANT: Stay focused on backend development questions related to ${details?.specificSkills || "APIs, databases, and server architecture"}. Do NOT switch topics to frontend or system design.` : ''}
            ${notes ? 'ADDITIONAL CONTEXT (not to be mentioned directly): ' + notes : ''}`
         : sessionType;
       

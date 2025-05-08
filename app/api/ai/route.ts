@@ -110,7 +110,10 @@ async function generateInterviewResponse(
       4. IMMEDIATELY START by asking about requirements and design considerations for ${systemToDesign.toUpperCase()} specifically.
       5. Assume the candidate already knows they are designing a ${systemToDesign.toUpperCase()} and proceed directly to requirements gathering and design.
       6. DO NOT begin with generic questions like "What would you like to design today?" or "Would you prefer to design X or Y?" Instead, your FIRST question should be about gathering specific requirements for ${systemToDesign.toUpperCase()}.
-      7. Your FIRST message should be something like: "Let's design a ${systemToDesign.toUpperCase()} system. First, let's gather the functional requirements. What are the core features and functionality this ${systemToDesign.toUpperCase()} system should support?"`;
+      7. Your FIRST message should be something like: "Let's design a ${systemToDesign.toUpperCase()} system. First, let's gather the functional requirements. What are the core features and functionality this ${systemToDesign.toUpperCase()} system should support?"
+      8. CRITICAL: NEVER MENTION ANY OTHER SYSTEM besides ${systemToDesign.toUpperCase()}. Do not talk about e-commerce if the system is a chat app. Do not talk about URL shorteners if the system is a social media platform. STAY STRICTLY FOCUSED on ${systemToDesign.toUpperCase()} throughout the entire interview.
+      9. If the user responds with requirements for a system different than ${systemToDesign.toUpperCase()}, gently redirect them by saying: "Let's focus specifically on designing a ${systemToDesign.toUpperCase()} system. What requirements would you prioritize for this ${systemToDesign.toUpperCase()} application?"
+      10. In your follow-up messages, NEVER HALLUCINATE by mentioning a different system. Always refer only to ${systemToDesign.toUpperCase()} throughout the entire interview.`;
       } else {
         systemPrompt += `
       3. Ask the candidate to design a specific system like a chat application, social media platform, e-commerce system, or another system relevant to their background.`;
@@ -227,6 +230,7 @@ async function generateInterviewResponse(
       - Stay in interview mode - maintain professionalism throughout
       ${shouldAvoidCoding ? "- DO NOT ask them to write actual code. Focus on verbal descriptions of algorithms and approaches instead." : ""}
       ${hasFocusOnGraphs ? "- Focus primarily on graph algorithms, tree traversals, and related data structures." : ""}
+      - ANTI-HALLUCINATION: Stay strictly focused on coding and algorithm questions. DO NOT switch to system design or other unrelated topics.
       `;
     } else if (interviewType.includes('front-end') || hasFocusOnFrontend) {
       // Extract specific frontend topics/technologies the user wants to focus on
@@ -274,6 +278,7 @@ async function generateInterviewResponse(
       - Be direct and to the point in your responses, avoiding unnecessary explanations
       - Stay in interview mode - maintain professionalism throughout
       ${shouldAvoidCoding ? "- DO NOT ask them to write actual code. Focus on concepts and approaches instead." : ""}
+      - ANTI-HALLUCINATION: Stay strictly focused on frontend development. DO NOT switch to system design, backend, or other unrelated topics.
       `;
     } else if (interviewType.includes('back-end') || hasFocusOnBackend) {
       // Extract specific backend topics/technologies the user wants to focus on
@@ -321,6 +326,7 @@ async function generateInterviewResponse(
       - Be direct and to the point in your responses, avoiding unnecessary explanations
       - Stay in interview mode - maintain professionalism throughout
       ${shouldAvoidCoding ? "- DO NOT ask them to write actual code. Focus on concepts and approaches instead." : ""}
+      - ANTI-HALLUCINATION: Stay strictly focused on backend development. DO NOT switch to system design, frontend, or other unrelated topics.
       `;
     } else if (interviewType.includes('mock') || interviewType === "general") {
       // Extract specific topics/technologies the user wants to focus on for general interviews
@@ -338,7 +344,8 @@ async function generateInterviewResponse(
         // If user specified topics, focus specifically on those
         systemPrompt += `
       3. FOCUS SPECIFICALLY ON: ${generalFocus}. Structure your questions around these technologies/skills/concepts.
-      4. Tailor your follow-up questions to dive deeper into these specific areas.`;
+      4. Tailor your follow-up questions to dive deeper into these specific areas.
+      5. ANTI-HALLUCINATION: Stay strictly focused on ${generalFocus}. Do NOT switch to unrelated topics or technologies that weren't specified.`;
       } else {
         // Otherwise provide a more general interview based on the job position
         systemPrompt += `
