@@ -6,7 +6,7 @@ import { Button } from "../../components/Button";
 import { FileUpload } from "../../components/FileUpload";
 import { cn } from "../../lib/utils";
 import { useRouter } from "next/navigation";
-import { BriefcaseIcon, CodeBracketIcon, BeakerIcon, ChartBarIcon, UserIcon } from "@heroicons/react/24/outline";
+import { BriefcaseIcon, CodeBracketIcon, BeakerIcon, ChartBarIcon, UserIcon, DocumentTextIcon, CubeIcon } from "@heroicons/react/24/outline";
 import { BackButton } from "../../components/BackButton";
 
 export default function MockInterviewPage() {
@@ -166,7 +166,7 @@ export default function MockInterviewPage() {
   const getSkillsPlaceholder = () => {
     switch (interviewType) {
       case "system-design":
-        return "e.g., URL shortener, chat application, e-commerce platform";
+        return "e.g., Chat/Messaging App, Social Media Platform, E-commerce System, Video Streaming Service, Ride-sharing Platform";
       case "coding":
         return "e.g., data structures, algorithms, dynamic programming";
       case "frontend":
@@ -176,6 +176,48 @@ export default function MockInterviewPage() {
       default:
         return "e.g., React, System Design, Leadership, Problem Solving";
     }
+  };
+
+  const getSkillsLabel = () => {
+    switch (interviewType) {
+      case "system-design":
+        return "System to Design (Optional - our AI will cover all key system design topics)";
+      case "coding":
+        return "Specific Algorithms/Problems (Optional)";
+      case "frontend":
+        return "Front-End Skills to Focus On (Optional)";
+      case "backend":
+        return "Back-End Skills to Focus On (Optional)";
+      default:
+        return "Specific Skills/Topics to Focus On (Optional)";
+    }
+  };
+
+  const renderSystemDesignInfo = () => {
+    if (interviewType !== "system-design") return null;
+    
+    return (
+      <div className="mt-4 bg-blue-50 rounded-lg p-4 border border-blue-100">
+        <h3 className="text-sm font-medium text-blue-800 mb-2 flex items-center">
+          <CubeIcon className="h-5 w-5 mr-1" />
+          System Design Interview Overview
+        </h3>
+        <p className="text-sm text-blue-700 mb-2">
+          Your system design interview will thoroughly cover these key areas:
+        </p>
+        <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside mb-2">
+          <li>Requirements gathering (functional & non-functional)</li>
+          <li>High-level architecture & component design</li>
+          <li>Data modeling & database selection</li>
+          <li>Scalability strategies & performance optimization</li>
+          <li>Reliability, fault tolerance & consistency considerations</li>
+          <li>And other advanced topics based on your system</li>
+        </ul>
+        <p className="text-sm text-blue-700 italic">
+          Specifying a system is optional - our AI interviewer will guide you through a complete system design process regardless.
+        </p>
+      </div>
+    );
   };
   
   return (
@@ -312,6 +354,8 @@ export default function MockInterviewPage() {
                       <span className="text-xs text-gray-500">Server development</span>
                     </button>
                   </div>
+                  
+                  {renderSystemDesignInfo()}
                 </div>
               )}
               
@@ -364,9 +408,7 @@ export default function MockInterviewPage() {
               
               <div>
                 <label htmlFor="skills" className="block text-sm font-medium text-gray-700 mb-1">
-                  {interviewType === "system-design" ? "System to Design (Optional)" :
-                   interviewType === "coding" ? "Specific Algorithms/Problems (Optional)" :
-                   "Specific Skills/Topics to Focus On (Optional)"}
+                  {getSkillsLabel()}
                 </label>
                 <textarea
                   id="skills"
@@ -412,7 +454,10 @@ export default function MockInterviewPage() {
           </div>
           
           <div className="mt-8 bg-indigo-50 rounded-lg p-4 border border-indigo-100">
-            <h3 className="text-sm font-medium text-indigo-800 mb-2">Tips for a successful interview:</h3>
+            <h3 className="text-sm font-medium text-indigo-800 mb-2 flex items-center">
+              <DocumentTextIcon className="h-5 w-5 mr-1" />
+              Tips for a successful interview:
+            </h3>
             <ul className="text-sm text-indigo-700 space-y-1 list-disc list-inside">
               <li>Speak clearly and take your time to formulate responses</li>
               <li>For system design interviews, focus on scalability and trade-offs</li>
