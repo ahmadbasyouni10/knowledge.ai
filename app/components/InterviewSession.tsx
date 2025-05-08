@@ -269,62 +269,14 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         timestamp: new Date(),
       };
       
-      // Add intro with empty content first
-      const initialIntro = {
-        ...introMsg,
-        content: ""
-      };
-      setMessages(prev => [...prev, initialIntro]);
+      // Add intro with full content immediately - no typing effect
+      setMessages(prev => [...prev, introMsg]);
       
-      // Start typing effect
-      setTypingComplete(false);
-      setTypingText({ id: introMsg.id, text: "" });
-      
-      // Clear any existing typing timer
-      if (typingTimerRef.current) {
-        clearInterval(typingTimerRef.current);
-      }
-      
-      // Start the typing effect
-      let charIndex = 0;
-      const textToType = introMessage;
-      
-      typingTimerRef.current = setInterval(() => {
-        if (charIndex < textToType.length) {
-          charIndex++;
-          const currentText = textToType.substring(0, charIndex);
-          setTypingText({ id: introMsg.id, text: currentText });
-          
-          // Update the message with the current text
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === introMsg.id 
-                ? { ...msg, content: currentText } 
-                : msg
-            )
-          );
-        } else {
-          // Typing is complete
-          clearInterval(typingTimerRef.current!);
-          setTypingComplete(true);
-          setTypingText(null);
-          
-          // Ensure the message has the full content
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === introMsg.id 
-                ? { ...msg, content: textToType } 
-                : msg
-            )
-          );
-          
-          // Speak the introduction after typing is complete
-          console.log('Starting to speak introduction...');
-          setTimeout(() => {
-            safelySpeakText(introMessage);
-          }, 500);
-        }
-      }, typingSpeedRef.current);
+      // Speak the introduction directly
+      console.log('Starting to speak introduction...');
+      setTimeout(() => {
+        safelySpeakText(introMessage);
+      }, 500);
       
       // Try to save the session to the database
       try {
