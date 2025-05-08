@@ -31,14 +31,14 @@ export function Header({ showBackButton = false, backHref = "/dashboard" }: { sh
               </>
             ) : (
               <>
-                <Button asChild variant="outline" size="sm" className="hidden sm:flex">
+                <Button asChild size="sm" className="hidden sm:flex">
                   <Link href="/sign-in">Sign In</Link>
                 </Button>
                 <Button asChild size="sm">
                   <Link href="/sign-up">Sign Up</Link>
                 </Button>
                 <div className="sm:hidden">
-                  <Button asChild variant="outline" size="sm">
+                  <Button asChild size="sm">
                     <Link href="/sign-in" className="text-xs">Sign In</Link>
                   </Button>
                 </div>
