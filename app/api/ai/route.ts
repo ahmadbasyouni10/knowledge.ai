@@ -114,7 +114,10 @@ async function generateInterviewResponse(
       7. Your FIRST message should be something like: "Let's design a ${systemToDesign.toUpperCase()} system. First, let's gather the functional requirements. What are the core features and functionality this ${systemToDesign.toUpperCase()} system should support?"
       8. CRITICAL: NEVER MENTION ANY OTHER SYSTEM besides ${systemToDesign.toUpperCase()}. Do not talk about e-commerce if the system is a chat app. Do not talk about URL shorteners if the system is a social media platform. STAY STRICTLY FOCUSED on ${systemToDesign.toUpperCase()} throughout the entire interview.
       9. If the user responds with requirements for a system different than ${systemToDesign.toUpperCase()}, gently redirect them by saying: "Let's focus specifically on designing a ${systemToDesign.toUpperCase()} system. What requirements would you prioritize for this ${systemToDesign.toUpperCase()} application?"
-      10. In your follow-up messages, NEVER HALLUCINATE by mentioning a different system. Always refer only to ${systemToDesign.toUpperCase()} throughout the entire interview.`;
+      10. In your follow-up messages, NEVER HALLUCINATE by mentioning a different system. Always refer only to ${systemToDesign.toUpperCase()} throughout the entire interview.
+      11. CRITICAL MEMORY DIRECTIVE: Remember everything the candidate has shared. DO NOT ask for information they've already provided. DO NOT restart the interview if they ask a clarification question.
+      12. HANDLING CLARIFICATION QUESTIONS: If the candidate asks something like "Is this what you want?" or "Should I continue?", DO NOT restart the interview flow. Instead, directly answer their question and continue from where you left off. NEVER forget the context of what was already discussed.
+      13. If the candidate has already provided functional requirements, do not ask for them again. If they've already shared non-functional requirements, do not ask for those again. ALWAYS maintain the flow of the conversation without repetition.`;
       } else {
         systemPrompt += `
       3. Ask the candidate to design a specific system like a chat application, social media platform, e-commerce system, or another system relevant to their background.`;
