@@ -757,23 +757,24 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
   
   const handleConnect = () => {
     setupAudioRecording();
+    // Test voice immediately after connecting
+    setTimeout(() => {
+      testVoice();
+    }, 500);
   };
   
-  // Function to test voice capabilities
   const testVoice = async () => {
-    console.log("Testing voice...");
-    setIsSpeaking(true);
-    
     try {
-      // First ensure voices are properly initialized
+      console.log('Testing voice functionality...');
+      const testPhrase = "Voice system initialized and ready.";
+      
+      // Ensure voices are ready
       await forceVoiceInit();
       
-      // Test message that's similar to the real interview intro
-      const testMessage = "Hello, this is a test of the voice system. If you can hear this, the voice system is working correctly.";
-      
-      // Use the same direct approach as the real interview
-      const utterance = new SpeechSynthesisUtterance(testMessage);
-      utterance.rate = speechRate;
+      // Create and configure utterance
+      const utterance = new SpeechSynthesisUtterance(testPhrase);
+      utterance.volume = 1.0; // Full volume
+      utterance.rate = 1.0;
       
       // Set voice if available
       if (window.speechSynthesis.getVoices().length > 0) {
@@ -784,31 +785,18 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         if (englishVoice) utterance.voice = englishVoice;
       }
       
-      // Set up event handlers
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        console.log('Test voice completed successfully');
-      };
-      
-      utterance.onerror = (e) => {
-        console.error('Error during test voice:', e);
-        setIsSpeaking(false);
-        alert("Voice test failed. Your browser may not fully support speech synthesis. Try using Chrome for the best experience.");
-      };
-      
-      // Cancel any existing speech
+      // First make sure any current speech is stopped
       window.speechSynthesis.cancel();
       
-      // Speak the test
+      // Speak the test phrase
       window.speechSynthesis.speak(utterance);
       
       // Ensure it's not paused (Chrome bug)
       window.speechSynthesis.resume();
       
-    } catch (e) {
-      console.error("Voice test failed:", e);
-      setIsSpeaking(false);
-      alert("Voice test failed. Your browser may not fully support speech synthesis. Try using Chrome for the best experience.");
+      console.log('Test speech sent to browser');
+    } catch (error) {
+      console.error("Error during voice test:", error);
     }
   };
   
