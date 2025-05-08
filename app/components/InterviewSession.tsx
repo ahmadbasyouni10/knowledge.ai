@@ -573,6 +573,7 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         ? `You are an expert interviewer conducting a ${interviewFocus} for the position of ${topic}. 
            Stay strictly focused on ${details?.focusAreas?.join(', ') || topic} without getting sidetracked by personal details. 
            Ask technical questions appropriate for a ${details?.experience || 'mid-level'} position.
+           ${details?.specificSkills ? `IMPORTANT: This is a system design interview specifically focused on designing a ${details?.specificSkills} system. Do NOT ask what system to design - proceed directly with questions about designing a ${details?.specificSkills} system.` : ''}
            ${notes ? 'ADDITIONAL CONTEXT (not to be mentioned directly): ' + notes : ''}`
         : sessionType;
       

@@ -106,7 +106,9 @@ async function generateInterviewResponse(
       // If a specific system is mentioned, focus explicitly on that
       if (systemToDesign) {
         systemPrompt += `
-      3. FOCUS SPECIFICALLY ON DESIGNING: ${systemToDesign.toUpperCase()}. Do not suggest other systems unless the candidate is struggling with this one.`;
+      3. FOCUS SPECIFICALLY ON DESIGNING: ${systemToDesign.toUpperCase()}. Do not suggest other systems or ask the candidate what they want to design.
+      4. IMMEDIATELY START by asking about requirements and design considerations for ${systemToDesign.toUpperCase()} specifically.
+      5. Assume the candidate already knows they are designing a ${systemToDesign.toUpperCase()} and proceed directly to requirements gathering and design.`;
       } else {
         systemPrompt += `
       3. Ask the candidate to design a specific system like a chat application, social media platform, e-commerce system, or another system relevant to their background.`;
@@ -165,6 +167,7 @@ async function generateInterviewResponse(
       - Evaluate their ability to make appropriate trade-offs
       - Consider both technical correctness and communication skills
       - DO NOT ask them to write code - focus ONLY on high-level design
+      ${systemToDesign ? "- DO NOT ask which system they want to design - focus directly on designing " + systemToDesign.toUpperCase() : ""}
       
       IMPORTANT: This interview should thoroughly assess the candidate's system design abilities while allowing them to demonstrate their knowledge. Keep responses concise and professional.`;
     } else if (interviewType.includes('coding') || hasFocusOnCoding) {
