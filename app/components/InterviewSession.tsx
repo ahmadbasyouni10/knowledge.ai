@@ -277,6 +277,13 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
       console.log('Starting to speak introduction...');
       setTimeout(() => {
         safelySpeakText(introMessage);
+        
+        // Enable a short delay before allowing speech to be skipped
+        // This ensures the welcome message is properly initialized before skipping
+        setTimeout(() => {
+          // Signal that speech can be safely skipped now
+          console.log('Welcome message can now be safely skipped');
+        }, 500);
       }, 500);
       
       // Try to save the session to the database
@@ -621,9 +628,22 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
   
   // Function to stop speaking immediately
   const stopSpeaking = () => {
-    if ('speechSynthesis' in window && isSpeaking) {
-      stopSpeech();
-      setIsSpeaking(false);
+    if ('speechSynthesis' in window) {
+      // More aggressive stop - cancel all speech immediately
+      try {
+        console.log('Forcefully stopping all speech');
+        window.speechSynthesis.cancel();
+        
+        // Clear all utterances to prevent any lingering speech
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+        }
+        
+        // Reset speaking state
+        setIsSpeaking(false);
+      } catch (e) {
+        console.error('Error stopping speech:', e);
+      }
     }
   };
   
@@ -1242,6 +1262,15 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
         
         <div className="w-1/3 p-6 flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
           <div className="flex flex-col items-center">
+            {/* Add note for best results */}
+            {isConnected && (
+              <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded-md max-w-[90%]">
+                <p className="text-xs text-red-700 font-medium text-center">
+                  <span className="font-bold">Note:</span> For best results, directly answer the questions asked by the interviewer and stay focused on the topic.
+                </p>
+              </div>
+            )}
+            
             <div className="w-24 h-24 bg-indigo-100 rounded-full flex items-center justify-center text-5xl mb-4">
               {sessionType === "topic" ? "👩‍🏫" : "👩‍💼"}
             </div>
