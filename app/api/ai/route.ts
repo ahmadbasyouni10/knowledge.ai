@@ -108,7 +108,9 @@ async function generateInterviewResponse(
         systemPrompt += `
       3. FOCUS SPECIFICALLY ON DESIGNING: ${systemToDesign.toUpperCase()}. Do not suggest other systems or ask the candidate what they want to design.
       4. IMMEDIATELY START by asking about requirements and design considerations for ${systemToDesign.toUpperCase()} specifically.
-      5. Assume the candidate already knows they are designing a ${systemToDesign.toUpperCase()} and proceed directly to requirements gathering and design.`;
+      5. Assume the candidate already knows they are designing a ${systemToDesign.toUpperCase()} and proceed directly to requirements gathering and design.
+      6. DO NOT begin with generic questions like "What would you like to design today?" or "Would you prefer to design X or Y?" Instead, your FIRST question should be about gathering specific requirements for ${systemToDesign.toUpperCase()}.
+      7. Your FIRST message should be something like: "Let's design a ${systemToDesign.toUpperCase()} system. First, let's gather the functional requirements. What are the core features and functionality this ${systemToDesign.toUpperCase()} system should support?"`;
       } else {
         systemPrompt += `
       3. Ask the candidate to design a specific system like a chat application, social media platform, e-commerce system, or another system relevant to their background.`;

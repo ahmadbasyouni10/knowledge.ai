@@ -568,12 +568,24 @@ export function InterviewSession({ topic, sessionType = "mock", onEnd, className
                 ? 'back-end development interview'
                 : `${sessionType} interview`;
       
+      // Check if this is explicitly a system design interview
+      const isSystemDesignInterview = 
+        interviewFocus.includes('system design') || 
+        details?.interviewType === 'system-design' || 
+        details?.focusAreas?.some((area: string) => area.toLowerCase().includes('system design'));
+
+      // Set the system to design if available
+      const systemToDesign = isSystemDesignInterview && details?.specificSkills 
+        ? details.specificSkills.trim() 
+        : "";
+      
       // Create a focused context with clear instructions
       const contextEnhancedSessionType = sessionType === 'mock'
         ? `You are an expert interviewer conducting a ${interviewFocus} for the position of ${topic}. 
            Stay strictly focused on ${details?.focusAreas?.join(', ') || topic} without getting sidetracked by personal details. 
            Ask technical questions appropriate for a ${details?.experience || 'mid-level'} position.
-           ${details?.specificSkills ? `IMPORTANT: This is a system design interview specifically focused on designing a ${details?.specificSkills} system. Do NOT ask what system to design - proceed directly with questions about designing a ${details?.specificSkills} system.` : ''}
+           ${isSystemDesignInterview ? `IMPORTANT: This is a SYSTEM DESIGN interview. Your role is to interview the candidate about designing a system.` : ''}
+           ${isSystemDesignInterview && systemToDesign ? `CRITICALLY IMPORTANT: Focus ONLY on designing a ${systemToDesign.toUpperCase()} system. Do NOT ask which system they want to design. ASSUME they already know they are designing a ${systemToDesign.toUpperCase()} and IMMEDIATELY begin with questions about requirements gathering for a ${systemToDesign.toUpperCase()}.` : ''}
            ${notes ? 'ADDITIONAL CONTEXT (not to be mentioned directly): ' + notes : ''}`
         : sessionType;
       
