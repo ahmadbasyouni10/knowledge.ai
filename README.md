@@ -2,6 +2,9 @@
 
 KnowledgeAI is an AI-powered platform for mock interviews, topic-based lectures, and more.
 
+![image](https://github.com/user-attachments/assets/6badb03f-0beb-4e1b-a03f-01b21d11765a)
+
+
 ## Getting Started
 
 Follow these instructions to set up the project locally.
